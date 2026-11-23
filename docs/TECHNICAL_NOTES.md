@@ -93,6 +93,7 @@ Outbound webhooks follow the same rules: events dispatch **after commit**; `UNIQ
 | `(assigned_to, status)` | Agent/manager scopes, My Leads, Unassigned (`IS NULL`), status within a scope; backs the FK |
 | `(next_follow_up_at)` | Overdue filter; sorting by follow-up |
 | `(status, created_at)` | Escalation sweeper; admin status filter |
+| `(created_at)` | Dashboard date ranges. Added after measuring: "new today" 48 ms → **0.6 ms**, 14-day series 149 ms → **16 ms** |
 | `(priority)` | High Priority filter (InnoDB appends the PK, so `ORDER BY id` needs no filesort) |
 | `UNIQUE (source, external_ref)` | Inbound webhook de-duplication |
 | `(phone)` | Phone search as a **prefix** match |
@@ -130,6 +131,10 @@ Capacity never counts leads: it is a primary-key lookup on `agent_daily_loads`.
    The Filament lead page for an admin at 500k rows runs **3 queries: COUNT 22.6 ms, page 0.4 ms, assignees 0.3 ms**.
 3. **Inspecting slow or excessive queries:** each query ≥ 200 ms is logged (`DB::listen`), as is any request whose total query time exceeds 1 s (`DB::whenQueryingForLongerThan`). docker-compose enables the MySQL slow query log (`long_query_time = 0.2`). `EXPLAIN` / `EXPLAIN ANALYZE` (as in `leads:benchmark`) checks the plans. Laravel Debugbar or Telescope can be added in development for per-request query lists.
 
+### Dashboards
+
+`LeadDashboardStats` feeds both the Filament widgets and `GET /api/v1/dashboard/stats`. Every metric starts from `Lead::visibleTo($user)` (the same rules as the lists) and is one indexed aggregate query. Results are cached for 60 s per visibility scope (`admin`, `sales_manager:{id}`, `sales_agent:{id}`), so users with different visibility never share an entry. The KPI summary deliberately runs **separate COUNTs** that each use their own index instead of one `CASE WHEN` aggregate scanning the table: 386 ms → 234 ms cold for an admin on 500k rows. Most of the remaining time is the "overdue" count, because about 250k synthetic leads are overdue. The "needs attention" table is a single `LIMIT 10` query without pagination, so Filament runs no `COUNT(*)` for it.
+
 ## 6. Assumptions (gaps in the brief)
 
 Full list in requirements.md §1. The main ones:
@@ -147,9 +152,16 @@ Full list in requirements.md §1. The main ones:
 - **Senior agents get twice the volume?** Add `WeightedRoundRobinStrategy implements AssignmentStrategy` (smooth weighted round robin over `users.assignment_weight`, which already exists) and switch `LEADS_ASSIGNMENT_STRATEGY`. `LeadAssigner`, the ledger and the locking do not change (Open/Closed).
 - **An agent moves to another team?** Visibility is computed from **current** `team_id`, so their leads become visible to the new manager immediately and stop being visible to the old one, with no data migration. The trade-off is that the old manager loses history visibility. If that matters, snapshot `team_id` on the lead at assignment time and scope managers by it.
 
-## 8. Beyond the brief
+## 8. Frontend
+
+- **Filament:** branded panel, SPA navigation, role-aware dashboard widgets, and a database-notification bell. Escalations are stored in Filament's notification format (built with Filament's own builder) plus plain domain keys for API consumers.
+- **Angular 22 Agent Workspace** at `/workspace`: standalone components, signals, zoneless change detection, functional interceptors (bearer token + one typed `ApiError` from the server's error envelope, logout on 401) and functional guards. Lazy-loaded pages, 88 KB initial transfer. The token is kept in `sessionStorage`. Angular sanitizes bindings by default, and no `bypassSecurityTrust*` is used.
+- **Serving:** the URL `/workspace/*` is always handled by Laravel, which returns the shell, while the built files live in `public/workspace-assets` (Angular `deployUrl`). Keeping the URL path and the directory name different avoids a PHP built-in server quirk: a URL that matches a real directory with an index file gets mapped to that file + PATH_INFO, which breaks deep links under `php artisan serve`.
+- **Verified** in headless Chrome as admin, manager and agent (light/dark): login, dashboard, filters, lead drawer + status change, and bulk assign including the server's 409 capacity error, with no console errors and no failed requests.
+
+## 9. Beyond the brief
 
 - **REST API v1** with Swagger UI (`/api/documentation`) on the same Actions and policies. A test fails if any `/api/v1` route is undocumented.
 - **Inbound webhooks:** HMAC-SHA256 over `timestamp.body`, a 5-minute replay window, constant-time compare, idempotent on `(source, external_id)`.
 - **Outbound webhooks:** signed, after-commit, retried, de-duplicated, with SSRF protection (https only, public IPs only, re-checked at send time).
-- **Test suite:** 119 tests / 564 assertions on MySQL in about 25 s, including architecture rules.
+- **Test suite:** 146 tests / 666 assertions on MySQL in about 22 s, including architecture rules.

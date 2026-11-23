@@ -54,7 +54,9 @@ php artisan schedule:work         # runs the escalation sweeper every minute
 
 | What | URL |
 |---|---|
-| Admin panel | http://127.0.0.1:8000/admin |
+| Home (links to everything) | http://127.0.0.1:8000 |
+| Admin panel (Filament, role-aware dashboard) | http://127.0.0.1:8000/admin |
+| **Agent Workspace** (Angular SPA on the REST API) | http://127.0.0.1:8000/workspace |
 | Swagger UI | http://127.0.0.1:8000/api/documentation |
 | OpenAPI JSON | http://127.0.0.1:8000/docs/api-docs.json |
 
@@ -76,6 +78,23 @@ Send an inbound lead webhook (the secret comes from `WEBHOOK_SECRET_WEBSITE` in 
 
 ```bash
 BODY='{"external_id":"web-1","name":"Mona Adel","phone":"+201112223334"}'; TS=$(date +%s); SIG="sha256=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac 'change-me-website' | cut -d' ' -f2)"; curl -s -X POST http://127.0.0.1:8000/api/v1/webhooks/leads -H 'Content-Type: application/json' -H 'Accept: application/json' -H 'X-Webhook-Source: website' -H "X-Webhook-Timestamp: $TS" -H "X-Webhook-Signature: $SIG" -d "$BODY"
+```
+
+## Frontend
+
+There are two user interfaces on the same backend. Both enforce nothing on their own: all authorization happens on the server.
+
+- **Admin panel (Filament 5):** a branded, role-aware dashboard (KPI cards, 14-day trend, pipeline chart, capacity today, most-overdue leads) and a notification bell for escalations.
+- **Agent Workspace (Angular 22):** standalone components, signals, functional interceptors and guards, Tailwind 4. It is built only on the public REST API, which is the practical proof that the business logic is reusable outside Filament.
+
+Both dashboards read their numbers from one server-side class (`App\Queries\LeadDashboardStats`), so they always agree.
+
+The workspace build is **committed** to `public/workspace-assets`, so Node.js is not needed to run it. To change the frontend:
+
+```bash
+cd frontend && npm ci
+npm start            # dev server on http://localhost:4200/workspace/ (proxies /api to :8000)
+npm run build        # writes public/workspace-assets
 ```
 
 ## Tests

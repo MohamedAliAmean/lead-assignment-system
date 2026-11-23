@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AssignableAgentController;
 use App\Http\Controllers\Api\V1\AuthTokenController;
+use App\Http\Controllers\Api\V1\DashboardStatsController;
 use App\Http\Controllers\Api\V1\InboundLeadWebhookController;
 use App\Http\Controllers\Api\V1\LeadBulkAssignmentController;
 use App\Http\Controllers\Api\V1\LeadController;
 use App\Http\Controllers\Api\V1\LeadStatusController;
 use App\Http\Controllers\Api\V1\LeadStatusHistoryController;
+use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\WebhookSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +20,9 @@ Route::prefix('v1')->name('api.v1.')->group(function (): void {
 
     Route::middleware(['auth:sanctum', 'active', 'throttle:api'])->group(function (): void {
         Route::delete('auth/tokens/current', [AuthTokenController::class, 'destroy'])->name('tokens.destroy');
+        Route::get('me', MeController::class)->name('me');
+        Route::get('assignable-agents', AssignableAgentController::class)->name('assignable-agents');
+        Route::get('dashboard/stats', DashboardStatsController::class)->name('dashboard.stats');
 
         Route::post('leads/bulk-assign', [LeadBulkAssignmentController::class, 'store'])->name('leads.bulk-assign');
         Route::get('leads', [LeadController::class, 'index'])->name('leads.index');

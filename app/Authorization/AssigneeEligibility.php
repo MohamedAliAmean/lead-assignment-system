@@ -51,7 +51,7 @@ final class AssigneeEligibility
      * Assignable agents with their remaining capacity for $day, in ONE query
      * (no per-agent lookups). Used for assignee pickers.
      *
-     * @return Collection<int, array{id: int, name: string, remaining: int}>
+     * @return Collection<int, array{id: int, name: string, capacity: int, used: int, remaining: int}>
      */
     public function assignableAgentsWithRemaining(User $actor, string $day): Collection
     {
@@ -64,6 +64,8 @@ final class AssigneeEligibility
             ->map(static fn (User $agent): array => [
                 'id' => $agent->id,
                 'name' => $agent->name,
+                'capacity' => $agent->daily_capacity,
+                'used' => (int) $agent->getAttribute('assigned_count'),
                 'remaining' => max(0, $agent->daily_capacity - (int) $agent->getAttribute('assigned_count')),
             ]);
     }

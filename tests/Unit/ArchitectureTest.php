@@ -29,12 +29,16 @@ arch('the admin panel holds no persistence or business logic')
         'App\Assignment\LeadAssigner',
     ]);
 
+arch('dashboard widgets read numbers through the shared query class, not raw SQL')
+    ->expect('App\Filament\Widgets')
+    ->not->toUse(['Illuminate\Support\Facades\DB', 'Illuminate\Support\Facades\Cache']);
+
 arch('HTTP controllers hold no persistence logic')
     ->expect('App\Http\Controllers')
     ->not->toUse(['Illuminate\Support\Facades\DB', 'Illuminate\Database\ConnectionInterface']);
 
 arch('the domain never depends on delivery layers')
-    ->expect(['App\Actions', 'App\Assignment', 'App\Authorization', 'App\Escalation', 'App\Data', 'App\Models', 'App\Jobs'])
+    ->expect(['App\Actions', 'App\Assignment', 'App\Authorization', 'App\Escalation', 'App\Data', 'App\Models', 'App\Jobs', 'App\Queries'])
     ->not->toUse(['App\Filament', 'App\Http', 'Filament\Tables', 'Filament\Forms', 'Filament\Actions']);
 
 arch('business services depend on contracts, not on concrete strategies')

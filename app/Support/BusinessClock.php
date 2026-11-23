@@ -33,4 +33,25 @@ final readonly class BusinessClock
     {
         return $this->now()->setTimezone($this->businessTimezone)->toDateString();
     }
+
+    /**
+     * Start of the current business day, expressed in UTC (for querying timestamps).
+     */
+    public function startOfToday(): CarbonImmutable
+    {
+        return $this->now()->setTimezone($this->businessTimezone)->startOfDay()->utc();
+    }
+
+    /**
+     * UTC offset of the business timezone right now, e.g. "+02:00" (for SQL CONVERT_TZ).
+     */
+    public function utcOffset(): string
+    {
+        return $this->now()->setTimezone($this->businessTimezone)->format('P');
+    }
+
+    public function timezone(): string
+    {
+        return $this->businessTimezone;
+    }
 }
