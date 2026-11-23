@@ -556,7 +556,7 @@ Route model binding for `{lead}` resolves through `Lead::visibleTo(request user)
 ### 12.3 Swagger
 - `l5-swagger` with swagger-php **PHP 8 attributes**: `#[OA\Get(...)]` on controller methods, and reusable schemas (`Lead`, `LeadStatusLog`, `Error`, `ValidationError`, `CapacityExceeded`, `WebhookSubscription`) in `app/OpenApi/Schemas`.
 - The security schemes `bearerAuth` (Sanctum) and `webhookSignature` (headers) are documented, with example requests and responses for every endpoint.
-- The UI is at **`/api/documentation`**, the raw spec at `/docs/api-docs.json`. `L5_SWAGGER_GENERATE_ALWAYS=true` locally; generated in CI/setup (`php artisan l5-swagger:generate`).
+- The UI is at **`/api/documentation`**, the raw spec at `/docs?api-docs.json`. `L5_SWAGGER_GENERATE_ALWAYS=true` locally; generated in CI/setup (`php artisan l5-swagger:generate`).
 - **Anti-drift test (R11.8):** generate the spec, then assert that every route under `api/v1` (method + normalized path) exists in `paths`.
 
 ---

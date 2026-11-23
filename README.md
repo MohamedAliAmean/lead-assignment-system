@@ -60,7 +60,7 @@ php artisan schedule:work         # runs the escalation sweeper every minute
 | Admin panel (Filament, role-aware dashboard) | http://127.0.0.1:8000/admin |
 | **Agent Workspace** (Angular SPA on the REST API) | http://127.0.0.1:8000/workspace |
 | Swagger UI | http://127.0.0.1:8000/api/documentation |
-| OpenAPI JSON | http://127.0.0.1:8000/docs/api-docs.json |
+| OpenAPI JSON | http://127.0.0.1:8000/docs?api-docs.json |
 
 ### Demo accounts (password: `password`)
 
