@@ -48,8 +48,15 @@ final readonly class CreateLeadData
         };
     }
 
+    /**
+     * Parses and normalizes to the application timezone (UTC). Eloquent stores
+     * a datetime's wall-clock time as-is, so "10:00+02:00" must become 08:00Z
+     * before it reaches the model.
+     */
     private static function date(mixed $value): ?CarbonImmutable
     {
-        return $value === null || $value === '' ? null : CarbonImmutable::parse($value);
+        return $value === null || $value === ''
+            ? null
+            : CarbonImmutable::parse($value)->setTimezone((string) config('app.timezone'));
     }
 }

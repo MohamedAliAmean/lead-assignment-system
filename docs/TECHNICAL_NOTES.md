@@ -74,7 +74,7 @@ Two server-side layers that share one rule per role:
 `EscalateStaleLead` is dispatched with a 30-minute delay, after commit. It carries only the lead id. `EscalateLead`:
 
 - reloads the lead **under `FOR UPDATE`**. `ChangeLeadStatus` takes the same lock, so a status change and an escalation cannot interleave;
-- does nothing if the lead is gone, not `new` any more, or not yet due;
+- does nothing if the lead is gone, not `new` any more, or not yet due. "Due" means 30 minutes after the lead **last entered** New (read from the audit log), so New → Contacted → New restarts the clock;
 - `insertOrIgnore` into `lead_escalations`, which has **`UNIQUE(lead_id)`**. If it inserted 0 rows, the lead was already escalated, so it stops **before** any side effect;
 - writes the database notification **in the same transaction**, so "escalated" and "notified" commit together. Any failure rolls both back, and the retry starts clean;
 - never modifies the lead.
@@ -164,4 +164,4 @@ Full list in requirements.md §1. The main ones:
 - **REST API v1** with Swagger UI (`/api/documentation`) on the same Actions and policies. A test fails if any `/api/v1` route is undocumented.
 - **Inbound webhooks:** HMAC-SHA256 over `timestamp.body`, a 5-minute replay window, constant-time compare, idempotent on `(source, external_id)`.
 - **Outbound webhooks:** signed, after-commit, retried, de-duplicated, with SSRF protection (https only, public IPs only, re-checked at send time).
-- **Test suite:** 146 tests / 666 assertions on MySQL in about 22 s, including architecture rules.
+- **Test suite:** 177 tests on MySQL, including architecture rules and 30 edge-case scenarios (`tests/Feature/Scenarios`). The scenarios found and fixed two real bugs: the escalation clock and timezone-offset storage.

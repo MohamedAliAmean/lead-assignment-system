@@ -9,14 +9,17 @@ use App\Escalation\Contracts\EscalationRecipientResolver;
 use App\Events\LeadEscalated;
 use App\Models\Lead;
 use App\Models\LeadEscalation;
+use App\Models\LeadStatusLog;
 use App\Notifications\LeadEscalatedNotification;
 use App\Support\BusinessClock;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\Notification;
 
 /**
  * Escalates a lead that is still "new" after the delay (R5). Idempotent:
  *  - re-reads the lead under a row lock and does nothing if it changed (R5.2/R5.3);
+ *  - the 30 minutes count from when the lead last entered New;
  *  - UNIQUE(lead_id) on lead_escalations stops duplicates before any side
  *    effect (R5.5);
  *  - the escalation row and the notification share one transaction, so a
@@ -45,10 +48,10 @@ final readonly class EscalateLead
             }
 
             $now = $this->clock->now();
-            $dueAt = $lead->created_at->addMinutes((int) config('leads.escalation_delay_minutes'));
+            $dueAt = $this->enteredNewAt($lead)->addMinutes((int) config('leads.escalation_delay_minutes'));
 
             if ($now->lessThan($dueAt)) {
-                return false; // ran early; the sweeper will pick it up when due
+                return false; // not due yet; the sweeper re-checks every minute
             }
 
             $target = $this->resolver->resolve($lead);
@@ -70,5 +73,22 @@ final readonly class EscalateLead
 
             return true;
         }, attempts: 3);
+    }
+
+    /**
+     * "Remains in New for 30 minutes" (R5) counts from the moment the lead last
+     * entered New, not from creation: a lead moved New -> Contacted -> New
+     * restarts its clock. Read from the audit log (index lead_id, changed_at).
+     */
+    private function enteredNewAt(Lead $lead): CarbonImmutable
+    {
+        $lastEntered = LeadStatusLog::query()
+            ->where('lead_id', $lead->getKey())
+            ->where('new_status', LeadStatus::New->value)
+            ->max('changed_at');
+
+        return $lastEntered === null
+            ? $lead->created_at
+            : CarbonImmutable::parse((string) $lastEntered, (string) config('app.timezone'));
     }
 }

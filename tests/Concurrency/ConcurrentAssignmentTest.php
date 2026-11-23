@@ -139,7 +139,10 @@ it('escalates exactly once when 4 processes run the job for the same lead at onc
     $team = Team::factory()->managedBy($manager)->create();
     $agent = User::factory()->agent()->inTeam($team)->create();
     $lead = Lead::factory()->assignedTo($agent)->create();
+    // Backdate creation AND the "entered New" audit entry: the escalation clock
+    // starts when the lead last entered New.
     $lead->forceFill(['created_at' => now()->subHour()])->saveQuietly();
+    DB::table('lead_status_logs')->where('lead_id', $lead->id)->update(['changed_at' => now()->subHour()]);
 
     runConcurrently(array_fill(0, 4, ['escalate', "--lead={$lead->id}", '--count=3']));
 

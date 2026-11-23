@@ -727,3 +727,5 @@ arch()->preset()->php();  arch()->preset()->security();
 | Index `(status, next_follow_up_at)` | Not planned | Benchmarked on 500k rows and **rejected** | The Overdue COUNT only went from 157 ms to 116 ms; not worth the write cost (technical note §5). |
 | Extra command | — | `leads:benchmark` | Prints per-role/filter timings and EXPLAIN plans on demand. |
 | Webhook subscription creation | Model save | `CreateWebhookSubscription` Action (authorize + SSRF check + secret generation) | The API and Filament share one code path. |
+| Escalation clock (found by edge-case scenario S17) | 30 minutes from `created_at` | 30 minutes from when the lead **last entered** New (latest `new` entry in the audit log) | R5 says "remains in New for 30 minutes": a lead moved New → Contacted → New restarts its clock. The sweeper re-checks every minute. |
+| Timestamps with offsets (found by scenario S30) | — | DTOs normalize parsed dates to the app timezone (UTC) | Eloquent stores a datetime's wall-clock time as-is, so `10:00+02:00` was stored as 10:00 UTC instead of 08:00. Covered by an API test. |

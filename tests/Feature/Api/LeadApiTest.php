@@ -184,3 +184,17 @@ describe('bulk assignment', function (): void {
             ->assertForbidden()->assertJsonPath('code', 'assignee_not_eligible');
     });
 });
+
+it('stores follow-up times sent with a timezone offset as the correct UTC instant', function (): void {
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $id = $this->postJson('/api/v1/leads', [
+        'name' => 'Offset Lead', 'phone' => '+201000000555', 'source' => 'website',
+        'next_follow_up_at' => '2026-12-01T10:00:00+02:00',
+    ])->assertCreated()->json('data.id');
+
+    expect(Lead::query()->findOrFail($id)->next_follow_up_at->utc()->toIso8601String())->toBe('2026-12-01T08:00:00+00:00');
+
+    $this->patchJson("/api/v1/leads/{$id}", ['next_follow_up_at' => '2026-12-02T09:30:00-05:00'])->assertOk();
+    expect(Lead::query()->findOrFail($id)->next_follow_up_at->utc()->toIso8601String())->toBe('2026-12-02T14:30:00+00:00');
+});

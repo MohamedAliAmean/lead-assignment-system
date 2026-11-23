@@ -157,7 +157,7 @@ php artisan schedule:work                                     # escalation sweep
 php artisan test
 ```
 
-Expected: **146 passed** in about 25 seconds. The tests use the `lead_crm_testing` database on the same MySQL server, so MySQL must be running.
+Expected: **all tests pass** (177) in about 25 seconds. The tests use the `lead_crm_testing` database on the same MySQL server, so MySQL must be running.
 
 | Suite | Command | Covers |
 |---|---|---|

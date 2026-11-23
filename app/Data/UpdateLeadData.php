@@ -41,12 +41,22 @@ final readonly class UpdateLeadData
             source: array_key_exists('source', $data) ? self::enum(LeadSource::class, $data['source']) : $lead->source,
             priority: array_key_exists('priority', $data) ? self::enum(LeadPriority::class, $data['priority']) : $lead->priority,
             nextFollowUpAt: array_key_exists('next_follow_up_at', $data)
-                ? ($data['next_follow_up_at'] === null || $data['next_follow_up_at'] === '' ? null : CarbonImmutable::parse($data['next_follow_up_at']))
+                ? self::date($data['next_follow_up_at'])
                 : $lead->next_follow_up_at,
             status: array_key_exists('status', $data) && $data['status'] !== null
                 ? self::enum(LeadStatus::class, $data['status'])
                 : null,
         );
+    }
+
+    /**
+     * Parses and normalizes to the application timezone (UTC); see CreateLeadData::date().
+     */
+    private static function date(mixed $value): ?CarbonImmutable
+    {
+        return $value === null || $value === ''
+            ? null
+            : CarbonImmutable::parse($value)->setTimezone((string) config('app.timezone'));
     }
 
     /**
