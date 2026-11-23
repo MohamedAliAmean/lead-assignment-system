@@ -2,6 +2,8 @@
 
 A CRM module built with **Laravel 12, Filament 5 and MySQL 8.4**. New leads are distributed to sales agents with Round Robin while respecting daily capacity. The system also audits every status change, escalates ignored leads to the responsible manager, enforces role-based visibility on the server, and exposes a REST API documented with Swagger plus signed webhooks.
 
+> **▶ To run the project, follow [`SETUP.md`](SETUP.md)** (about 5 minutes from a fresh clone).
+
 - **Technical note** (design decisions, concurrency, indexes, measurements): [`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md)
 - **Specs** (spec-driven development): [`specs/`](specs/): constitution → requirements → design → tasks
 
@@ -9,7 +11,7 @@ A CRM module built with **Laravel 12, Filament 5 and MySQL 8.4**. New leads are 
 
 ## Requirements
 
-- PHP **8.3+** with `pdo_mysql`, `intl`, `pcntl` (the concurrency tests start parallel PHP processes)
+- PHP **8.3, 8.4 or 8.5** with `pdo_mysql`, `intl`, `mbstring`, `zip` (dependencies are locked for PHP 8.3+)
 - Composer 2
 - MySQL **8.0.16+** (8.4 recommended; CHECK constraints are used). Docker is the easiest way to get it.
 
