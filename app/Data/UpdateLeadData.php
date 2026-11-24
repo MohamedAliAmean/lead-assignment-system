@@ -7,70 +7,72 @@ namespace App\Data;
 use App\Enums\LeadPriority;
 use App\Enums\LeadSource;
 use App\Enums\LeadStatus;
-use App\Models\Lead;
 use App\Support\PhoneNumber;
 use Carbon\CarbonImmutable;
 
 /**
- * Full set of editable lead fields. Partial updates (API PATCH) are merged
- * with the current lead first, see fromPartial().
+ * Partial lead update: only the fields that were actually sent are carried,
+ * so the DTO has no knowledge of the current Lead (no dependency on the model).
+ * UpdateLead applies exactly the provided fields.
  */
 final readonly class UpdateLeadData
 {
-    public string $phone;
-
-    public function __construct(
-        public string $name,
-        string $phone,
-        public LeadSource $source,
-        public LeadPriority $priority,
-        public ?CarbonImmutable $nextFollowUpAt,
-        public ?LeadStatus $status = null,
-    ) {
-        $this->phone = PhoneNumber::normalize($phone);
-    }
-
     /**
-     * @param  array<string, mixed>  $data  validated input; missing keys keep current values
+     * @param  array<string, mixed>  $changes  attribute => normalized value (only provided fields)
      */
-    public static function fromPartial(Lead $lead, array $data): self
+    private function __construct(
+        private array $changes,
+        public ?LeadStatus $status,
+    ) {}
+
+    /**
+     * @param  array<string, mixed>  $data  validated input; absent keys are left untouched
+     */
+    public static function fromArray(array $data): self
     {
-        return new self(
-            name: array_key_exists('name', $data) ? (string) $data['name'] : $lead->name,
-            phone: array_key_exists('phone', $data) ? (string) $data['phone'] : $lead->phone,
-            source: array_key_exists('source', $data) ? self::enum(LeadSource::class, $data['source']) : $lead->source,
-            priority: array_key_exists('priority', $data) ? self::enum(LeadPriority::class, $data['priority']) : $lead->priority,
-            nextFollowUpAt: array_key_exists('next_follow_up_at', $data)
-                ? self::date($data['next_follow_up_at'])
-                : $lead->next_follow_up_at,
-            status: array_key_exists('status', $data) && $data['status'] !== null
-                ? self::enum(LeadStatus::class, $data['status'])
-                : null,
-        );
+        $changes = [];
+
+        if (array_key_exists('name', $data)) {
+            $changes['name'] = (string) $data['name'];
+        }
+        if (array_key_exists('phone', $data)) {
+            $changes['phone'] = PhoneNumber::normalize((string) $data['phone']);
+        }
+        if (array_key_exists('source', $data)) {
+            $changes['source'] = $data['source'] instanceof LeadSource ? $data['source'] : LeadSource::from((string) $data['source']);
+        }
+        if (array_key_exists('priority', $data)) {
+            $changes['priority'] = $data['priority'] instanceof LeadPriority ? $data['priority'] : LeadPriority::from((int) $data['priority']);
+        }
+        if (array_key_exists('next_follow_up_at', $data)) {
+            $changes['next_follow_up_at'] = self::date($data['next_follow_up_at']);
+        }
+
+        $status = match (true) {
+            ! array_key_exists('status', $data), $data['status'] === null, $data['status'] === '' => null,
+            $data['status'] instanceof LeadStatus => $data['status'],
+            default => LeadStatus::from((string) $data['status']),
+        };
+
+        return new self($changes, $status);
     }
 
     /**
-     * Parses and normalizes to the application timezone (UTC); see CreateLeadData::date().
+     * Attribute changes to apply (status excluded: it has its own use case).
+     *
+     * @return array<string, mixed>
+     */
+    public function changes(): array
+    {
+        return $this->changes;
+    }
+
+    /**
+     * Parses and normalizes to UTC. Eloquent stores a datetime's wall-clock time
+     * as-is, so "10:00+02:00" must become 08:00Z before it reaches the model.
      */
     private static function date(mixed $value): ?CarbonImmutable
     {
-        return $value === null || $value === ''
-            ? null
-            : CarbonImmutable::parse($value)->setTimezone((string) config('app.timezone'));
-    }
-
-    /**
-     * @template T of \BackedEnum
-     *
-     * @param  class-string<T>  $enum
-     * @return T
-     */
-    private static function enum(string $enum, mixed $value): \BackedEnum
-    {
-        if ($value instanceof $enum) {
-            return $value;
-        }
-
-        return $enum::from(is_numeric($value) && $enum === LeadPriority::class ? (int) $value : $value);
+        return $value === null || $value === '' ? null : CarbonImmutable::parse($value)->utc();
     }
 }

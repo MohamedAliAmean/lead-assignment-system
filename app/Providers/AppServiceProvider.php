@@ -13,11 +13,14 @@ use App\Authorization\Rules\AdminVisibility;
 use App\Authorization\Rules\AgentVisibility;
 use App\Authorization\Rules\ManagerVisibility;
 use App\Enums\UserRole;
+use App\Escalation\Contracts\EscalationNotifier;
 use App\Escalation\Contracts\EscalationRecipientResolver;
 use App\Escalation\TeamManagerRecipientResolver;
 use App\Models\Lead;
 use App\Models\WebhookSubscription;
+use App\Notifications\DatabaseEscalationNotifier;
 use App\Support\BusinessClock;
+use App\Support\LeadSettings;
 use App\Support\SystemClock;
 use App\Webhooks\Contracts\WebhookSigner;
 use App\Webhooks\HmacSha256Signer;
@@ -67,6 +70,13 @@ final class AppServiceProvider extends ServiceProvider
         ]));
 
         $this->app->bind(EscalationRecipientResolver::class, TeamManagerRecipientResolver::class);
+        $this->app->bind(EscalationNotifier::class, DatabaseEscalationNotifier::class);
+
+        // Business settings as an immutable value object: inner layers never call config().
+        $this->app->singleton(LeadSettings::class, fn (): LeadSettings => new LeadSettings(
+            escalationDelayMinutes: (int) config('leads.escalation_delay_minutes'),
+            bulkAssignMax: (int) config('leads.bulk_assign_max'),
+        ));
 
         $this->app->singleton(WebhookSigner::class, HmacSha256Signer::class);
         $this->app->bind(OutboundUrlGuard::class, fn (): OutboundUrlGuard => new OutboundUrlGuard(
@@ -108,11 +118,11 @@ final class AppServiceProvider extends ServiceProvider
     {
         // API {lead} parameters resolve through the visibility scope, so an
         // inaccessible lead is a 404 before the controller even runs (R11.3).
-        Route::bind('lead', static function (string $value, $route): Lead {
+        Route::bind('lead', function (string $value): Lead {
             $user = request()->user();
             abort_if($user === null, 401);
 
-            return Lead::query()->visibleTo($user)->whereKey((int) $value)->firstOrFail();
+            return $this->app->make(LeadVisibility::class)->apply(Lead::query(), $user)->whereKey((int) $value)->firstOrFail();
         });
         Route::model('subscription', WebhookSubscription::class);
 

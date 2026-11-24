@@ -6,6 +6,7 @@ namespace App\Actions\Leads;
 
 use App\Assignment\CapacityLedger;
 use App\Authorization\AssigneeEligibility;
+use App\Authorization\LeadVisibility;
 use App\Data\BulkAssignData;
 use App\Events\LeadAssigned;
 use App\Exceptions\Domain\AgentCapacityExceeded;
@@ -15,7 +16,9 @@ use App\Exceptions\Domain\LeadsNotAccessible;
 use App\Models\Lead;
 use App\Models\User;
 use App\Support\BusinessClock;
+use App\Support\LeadSettings;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -34,8 +37,11 @@ final readonly class BulkAssignLeads
     public function __construct(
         private ConnectionInterface $db,
         private AssigneeEligibility $eligibility,
+        private LeadVisibility $visibility,
         private CapacityLedger $ledger,
         private BusinessClock $clock,
+        private LeadSettings $settings,
+        private Dispatcher $events,
     ) {}
 
     /**
@@ -47,7 +53,7 @@ final readonly class BulkAssignLeads
             throw new AuthorizationException('You are not allowed to assign leads.');
         }
 
-        $max = (int) config('leads.bulk_assign_max');
+        $max = $this->settings->bulkAssignMax;
 
         if (count($data->leadIds) > $max) {
             throw new BulkAssignLimitExceeded(count($data->leadIds), $max);
@@ -64,8 +70,7 @@ final readonly class BulkAssignLeads
         }
 
         return $this->db->transaction(function () use ($data, $actor, $target): int {
-            $leads = Lead::query()
-                ->visibleTo($actor)
+            $leads = $this->visibility->apply(Lead::query(), $actor)
                 ->whereKey($data->leadIds)
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -100,7 +105,7 @@ final readonly class BulkAssignLeads
             ]);
 
             foreach ($toMove as $lead) {
-                LeadAssigned::dispatch($lead->getKey(), $target->getKey(), $lead->assigned_to, 'manual');
+                $this->events->dispatch(new LeadAssigned($lead->getKey(), $target->getKey(), $lead->assigned_to, 'manual'));
             }
 
             return $toMove->count();

@@ -32,13 +32,9 @@ final readonly class UpdateLead
             /** @var Lead $locked */
             $locked = Lead::query()->lockForUpdate()->findOrFail($lead->getKey());
 
-            $locked->fill([
-                'name' => $data->name,
-                'phone' => $data->phone,
-                'source' => $data->source,
-                'priority' => $data->priority,
-                'next_follow_up_at' => $data->nextFollowUpAt,
-            ])->save();
+            if ($data->changes() !== []) {
+                $locked->fill($data->changes())->save();
+            }
 
             if ($data->status !== null && $data->status !== $locked->status) {
                 return $this->changeStatus->handle($locked, $data->status, $actor);

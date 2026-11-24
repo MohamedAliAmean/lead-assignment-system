@@ -10,6 +10,7 @@ use App\Events\LeadStatusChanged;
 use App\Models\Lead;
 use App\Models\User;
 use Illuminate\Contracts\Auth\Access\Gate;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -22,6 +23,7 @@ final readonly class ChangeLeadStatus
         private ConnectionInterface $db,
         private Gate $gate,
         private ActorContext $actors,
+        private Dispatcher $events,
     ) {}
 
     public function handle(Lead $lead, LeadStatus $to, User $actor): Lead
@@ -41,7 +43,7 @@ final readonly class ChangeLeadStatus
             $locked->status = $to;
             $locked->save();
 
-            LeadStatusChanged::dispatch($locked->getKey(), $old->value, $to->value, $actor->getKey());
+            $this->events->dispatch(new LeadStatusChanged($locked->getKey(), $old->value, $to->value, $actor->getKey()));
 
             return $locked;
         }, attempts: 3));

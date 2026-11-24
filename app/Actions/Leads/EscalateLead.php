@@ -5,16 +5,17 @@ declare(strict_types=1);
 namespace App\Actions\Leads;
 
 use App\Enums\LeadStatus;
+use App\Escalation\Contracts\EscalationNotifier;
 use App\Escalation\Contracts\EscalationRecipientResolver;
 use App\Events\LeadEscalated;
 use App\Models\Lead;
 use App\Models\LeadEscalation;
 use App\Models\LeadStatusLog;
-use App\Notifications\LeadEscalatedNotification;
 use App\Support\BusinessClock;
+use App\Support\LeadSettings;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\ConnectionInterface;
-use Illuminate\Support\Facades\Notification;
 
 /**
  * Escalates a lead that is still "new" after the delay (R5). Idempotent:
@@ -22,8 +23,9 @@ use Illuminate\Support\Facades\Notification;
  *  - the 30 minutes count from when the lead last entered New;
  *  - UNIQUE(lead_id) on lead_escalations stops duplicates before any side
  *    effect (R5.5);
- *  - the escalation row and the notification share one transaction, so a
- *    failure leaves nothing behind and a retry starts clean (R5.6);
+ *  - the escalation row and the notification (EscalationNotifier port) share
+ *    one transaction, so a failure leaves nothing behind and a retry starts
+ *    clean (R5.6);
  *  - never modifies the lead itself (R5.7).
  */
 final readonly class EscalateLead
@@ -31,7 +33,10 @@ final readonly class EscalateLead
     public function __construct(
         private ConnectionInterface $db,
         private EscalationRecipientResolver $resolver,
+        private EscalationNotifier $notifier,
         private BusinessClock $clock,
+        private LeadSettings $settings,
+        private Dispatcher $events,
     ) {}
 
     /**
@@ -48,7 +53,7 @@ final readonly class EscalateLead
             }
 
             $now = $this->clock->now();
-            $dueAt = $this->enteredNewAt($lead)->addMinutes((int) config('leads.escalation_delay_minutes'));
+            $dueAt = $this->enteredNewAt($lead)->addMinutes($this->settings->escalationDelayMinutes);
 
             if ($now->lessThan($dueAt)) {
                 return false; // not due yet; the sweeper re-checks every minute
@@ -66,10 +71,10 @@ final readonly class EscalateLead
                 return false; // already escalated: no second side effect
             }
 
-            Notification::sendNow($target->recipients, new LeadEscalatedNotification($lead));
+            $this->notifier->notify($lead, $target);
 
             $escalationId = (int) LeadEscalation::query()->where('lead_id', $lead->getKey())->value('id');
-            LeadEscalated::dispatch($lead->getKey(), $escalationId, $target->manager?->getKey());
+            $this->events->dispatch(new LeadEscalated($lead->getKey(), $escalationId, $target->manager?->getKey()));
 
             return true;
         }, attempts: 3);
@@ -89,6 +94,6 @@ final readonly class EscalateLead
 
         return $lastEntered === null
             ? $lead->created_at
-            : CarbonImmutable::parse((string) $lastEntered, (string) config('app.timezone'));
+            : CarbonImmutable::parse((string) $lastEntered, 'UTC'); // timestamps are stored in UTC
     }
 }

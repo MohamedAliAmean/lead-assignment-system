@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Leads;
 
+use App\Authorization\LeadVisibility;
 use App\Filament\Resources\Leads\Pages\CreateLead;
 use App\Filament\Resources\Leads\Pages\EditLead;
 use App\Filament\Resources\Leads\Pages\ListLeads;
@@ -48,7 +49,7 @@ final class LeadResource extends Resource
         /** @var User $user */
         $user = auth()->user();
 
-        return parent::getEloquentQuery()->visibleTo($user);
+        return app(LeadVisibility::class)->apply(parent::getEloquentQuery(), $user);
     }
 
     public static function form(Schema $schema): Schema

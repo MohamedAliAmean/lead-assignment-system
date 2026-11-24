@@ -54,6 +54,70 @@ arch('domain exceptions extend the domain base exception')
     ->toExtend('App\Exceptions\Domain\DomainException')
     ->ignoring('App\Exceptions\Domain\DomainException');
 
+/*
+| Clean Architecture dependency rule (pragmatic variant, see TECHNICAL_NOTES §1):
+| inner layers (use cases, domain services, DTOs) must not reach outwards to
+| infrastructure or delivery, and must not locate services globally.
+*/
+
+arch('use cases never touch infrastructure or delivery directly')
+    ->expect('App\Actions')
+    ->not->toUse([
+        'App\Jobs', 'App\Notifications', 'App\Listeners', 'App\Http', 'App\Filament',
+        'Illuminate\Support\Facades', 'Illuminate\Support\Str',
+    ]);
+
+arch('domain services never touch infrastructure')
+    ->expect(['App\Assignment', 'App\Authorization', 'App\Escalation', 'App\Queries'])
+    ->not->toUse(['App\Jobs', 'App\Notifications', 'App\Listeners', 'App\Http', 'App\Filament', 'Illuminate\Support\Facades']);
+
+/*
+| Pest's arch() does not see calls to global helper functions inside namespaced
+| classes, so this rule scans the PHP tokens itself.
+*/
+it('inner layers use constructor injection, never a service locator', function (): void {
+    $forbidden = ['app', 'resolve', 'config'];
+    $skipBefore = [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_NEW];
+    $violations = [];
+
+    foreach (['Actions', 'Assignment', 'Authorization', 'Escalation', 'Queries', 'Data', 'Models', 'Observers'] as $dir) {
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(app_path($dir), FilesystemIterator::SKIP_DOTS));
+
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $tokens = array_values(array_filter(
+                token_get_all((string) file_get_contents($file->getPathname())),
+                static fn ($t): bool => ! (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)),
+            ));
+
+            foreach ($tokens as $i => $token) {
+                $isName = is_array($token) && in_array($token[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true);
+                $name = $isName ? strtolower(ltrim($token[1], '\\')) : null;
+                $previous = $tokens[$i - 1] ?? null;
+
+                if ($name !== null && in_array($name, $forbidden, true)
+                    && ($tokens[$i + 1] ?? null) === '('
+                    && ! (is_array($previous) && in_array($previous[0], $skipBefore, true))) {
+                    $violations[] = str_replace(base_path().'/', '', $file->getPathname()).":{$token[2]} {$name}()";
+                }
+            }
+        }
+    }
+
+    expect($violations)->toBe([]);
+});
+
+arch('DTOs are independent of persistence models')
+    ->expect('App\Data')
+    ->not->toUse(['App\Models', 'Illuminate\Database']);
+
+arch('output ports are interfaces implemented outside the domain')
+    ->expect('App\Notifications\DatabaseEscalationNotifier')
+    ->toImplement('App\Escalation\Contracts\EscalationNotifier');
+
 arch('no debugging leftovers')
     ->expect(['dd', 'dump', 'ray', 'var_dump', 'die'])
     ->not->toBeUsed();

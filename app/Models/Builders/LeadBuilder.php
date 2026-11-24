@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models\Builders;
 
-use App\Authorization\LeadVisibility;
 use App\Enums\LeadPriority;
 use App\Enums\LeadStatus;
 use App\Models\Lead;
@@ -16,18 +15,14 @@ use Illuminate\Database\Eloquent\Builder;
  * Named, reusable lead queries. Filament filters and API query parameters both
  * call these, so each filter is defined exactly once (design §5).
  *
+ * Authorization scoping is NOT here: it is applied by the injected
+ * LeadVisibility service ($visibility->apply($query, $user)), so this class has
+ * no hidden dependencies (no service locator).
+ *
  * @extends Builder<Lead>
  */
 final class LeadBuilder extends Builder
 {
-    /**
-     * Restrict to leads the user may see (R6). Always applied on read paths.
-     */
-    public function visibleTo(User $user): self
-    {
-        return app(LeadVisibility::class)->apply($this, $user);
-    }
-
     public function assignedTo(User|int $user): self
     {
         return $this->where('leads.assigned_to', $user instanceof User ? $user->getKey() : $user);

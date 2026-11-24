@@ -2,9 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Authorization\LeadVisibility;
+use App\Models\Builders\LeadBuilder;
 use App\Models\Lead;
 use App\Models\Team;
 use App\Models\User;
+
+function visibleLeads(User $user): LeadBuilder
+{
+    return app(LeadVisibility::class)->apply(Lead::query(), $user);
+}
 
 beforeEach(function (): void {
     $this->manager = User::factory()->manager()->create();
@@ -20,7 +27,7 @@ beforeEach(function (): void {
 });
 
 it('lets an agent see only their own leads', function (): void {
-    expect(Lead::query()->visibleTo($this->agent)->pluck('id')->all())->toBe([$this->ownLead->id])
+    expect(visibleLeads($this->agent)->pluck('id')->all())->toBe([$this->ownLead->id])
         ->and($this->agent->can('view', $this->ownLead))->toBeTrue()
         ->and($this->agent->can('view', $this->teammateLead))->toBeFalse()
         ->and($this->agent->can('update', $this->outsiderLead))->toBeFalse()
@@ -28,7 +35,7 @@ it('lets an agent see only their own leads', function (): void {
 });
 
 it('lets a manager see only leads of their team members', function (): void {
-    expect(Lead::query()->visibleTo($this->manager)->pluck('id')->all())
+    expect(visibleLeads($this->manager)->pluck('id')->all())
         ->toEqualCanonicalizing([$this->ownLead->id, $this->teammateLead->id])
         ->and($this->manager->can('view', $this->teammateLead))->toBeTrue()
         ->and($this->manager->can('view', $this->outsiderLead))->toBeFalse()
@@ -38,7 +45,7 @@ it('lets a manager see only leads of their team members', function (): void {
 it('lets an admin see every lead', function (): void {
     $admin = User::factory()->admin()->create();
 
-    expect(Lead::query()->visibleTo($admin)->count())->toBe(4)
+    expect(visibleLeads($admin)->count())->toBe(4)
         ->and($admin->can('view', $this->outsiderLead))->toBeTrue()
         ->and($admin->can('delete', $this->outsiderLead))->toBeTrue();
 });
@@ -51,20 +58,20 @@ it('moves visibility with the agent when they change team (A-9)', function (): v
 
     expect($this->manager->can('view', $this->ownLead))->toBeFalse()
         ->and($otherManager->can('view', $this->ownLead))->toBeTrue()
-        ->and(Lead::query()->visibleTo($otherManager)->pluck('id')->all())->toBe([$this->ownLead->id]);
+        ->and(visibleLeads($otherManager)->pluck('id')->all())->toBe([$this->ownLead->id]);
 });
 
 it('fails closed for inactive users', function (): void {
     $this->agent->update(['is_active' => false]);
 
-    expect(Lead::query()->visibleTo($this->agent)->count())->toBe(0)
+    expect(visibleLeads($this->agent)->count())->toBe(0)
         ->and($this->agent->can('view', $this->ownLead))->toBeFalse();
 });
 
 it('shows nothing to a manager who has no team', function (): void {
     $loneManager = User::factory()->manager()->create();
 
-    expect(Lead::query()->visibleTo($loneManager)->count())->toBe(0);
+    expect(visibleLeads($loneManager)->count())->toBe(0);
 });
 
 it('only lets admins and managers create, and only admins delete', function (): void {

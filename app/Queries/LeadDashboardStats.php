@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Authorization\AssigneeEligibility;
+use App\Authorization\LeadVisibility;
 use App\Enums\LeadStatus;
 use App\Models\Lead;
 use App\Models\LeadEscalation;
@@ -17,7 +18,7 @@ use Illuminate\Support\Collection;
  * Dashboard numbers shared by the Filament widgets and the API (frontend spec
  * §3.1), so both UIs show exactly the same, equally authorized figures.
  *
- * - Every metric starts from Lead::visibleTo($user): same rules as the lists.
+ * - Every metric starts from LeadVisibility::apply(): same rules as the lists.
  * - Every metric is one indexed aggregate query; rows are never loaded into PHP.
  * - Results are cached briefly per visibility scope, so a dashboard full of
  *   widgets costs at most one query per metric per minute.
@@ -29,6 +30,7 @@ final readonly class LeadDashboardStats
     public function __construct(
         private BusinessClock $clock,
         private AssigneeEligibility $eligibility,
+        private LeadVisibility $visibility,
         private Cache $cache,
     ) {}
 
@@ -40,7 +42,7 @@ final readonly class LeadDashboardStats
         return $this->remember($user, 'summary', function () use ($user): array {
             $now = $this->clock->now();
             $today = $this->clock->startOfToday();
-            $visible = fn () => Lead::query()->visibleTo($user);
+            $visible = fn () => $this->visibility->apply(Lead::query(), $user);
 
             // Separate COUNTs on purpose: each one uses its own index, which is
             // ~40% faster on 500k rows than one CASE WHEN aggregate that must
@@ -71,7 +73,7 @@ final readonly class LeadDashboardStats
             $from = $this->clock->startOfToday()->subDays($days - 1);
             $offset = $this->clock->utcOffset();
 
-            $counts = Lead::query()->visibleTo($user)->toBase()
+            $counts = $this->visibility->apply(Lead::query(), $user)->toBase()
                 ->where('leads.created_at', '>=', $from)
                 ->selectRaw("DATE(CONVERT_TZ(leads.created_at, '+00:00', ?)) AS day, COUNT(*) AS total", [$offset])
                 ->groupBy('day')
@@ -95,7 +97,7 @@ final readonly class LeadDashboardStats
     public function statusBreakdown(User $user): array
     {
         return $this->remember($user, 'status-breakdown', function () use ($user): array {
-            $counts = Lead::query()->visibleTo($user)->toBase()
+            $counts = $this->visibility->apply(Lead::query(), $user)->toBase()
                 ->selectRaw('leads.status AS status, COUNT(*) AS total')
                 ->groupBy('leads.status')
                 ->pluck('total', 'status');
@@ -117,8 +119,7 @@ final readonly class LeadDashboardStats
      */
     public function needsAttention(User $user, int $limit = 10): Collection
     {
-        return Lead::query()
-            ->visibleTo($user)
+        return $this->visibility->apply(Lead::query(), $user)
             ->overdue($this->clock->now())
             ->with('assignedUser:id,name')
             ->orderBy('leads.next_follow_up_at')

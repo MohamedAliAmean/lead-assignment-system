@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Widgets;
 
+use App\Authorization\LeadVisibility;
 use App\Enums\LeadPriority;
 use App\Enums\LeadStatus;
 use App\Filament\Resources\Leads\LeadResource;
@@ -31,8 +32,7 @@ final class NeedsAttentionTable extends TableWidget
         $user = auth()->user();
 
         return $table
-            ->query(fn () => Lead::query()
-                ->visibleTo($user)
+            ->query(fn () => app(LeadVisibility::class)->apply(Lead::query(), $user)
                 ->overdue(now())
                 ->with('assignedUser:id,name')
                 ->reorder('leads.next_follow_up_at')

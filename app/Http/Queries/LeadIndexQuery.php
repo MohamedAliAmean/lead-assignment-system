@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Queries;
 
+use App\Authorization\LeadVisibility;
 use App\Enums\LeadPriority;
 use App\Enums\LeadStatus;
 use App\Http\Requests\Api\V1\ListLeadsRequest;
@@ -15,12 +16,13 @@ use App\Models\User;
  * Maps API query parameters onto the same LeadBuilder scopes the admin panel
  * filters use, so both channels filter identically.
  */
-final class LeadIndexQuery
+final readonly class LeadIndexQuery
 {
-    public static function for(User $user, ListLeadsRequest $request): LeadBuilder
+    public function __construct(private LeadVisibility $visibility) {}
+
+    public function for(User $user, ListLeadsRequest $request): LeadBuilder
     {
-        $query = Lead::query()
-            ->visibleTo($user)
+        $query = $this->visibility->apply(Lead::query(), $user)
             ->with('assignedUser:id,name')
             ->orderByDesc('leads.id');
 

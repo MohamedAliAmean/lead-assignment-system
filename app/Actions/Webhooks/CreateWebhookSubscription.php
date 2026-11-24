@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Models\WebhookSubscription;
 use App\Webhooks\OutboundUrlGuard;
 use Illuminate\Contracts\Auth\Access\Gate;
-use Illuminate\Support\Str;
 
 /**
  * Registers an outbound webhook endpoint (R12.4). The URL is SSRF-checked
@@ -33,7 +32,7 @@ final readonly class CreateWebhookSubscription
         return WebhookSubscription::query()->create([
             'name' => $name,
             'url' => $url,
-            'secret' => $secret ?: 'whsec_'.Str::random(40),
+            'secret' => $secret ?: 'whsec_'.bin2hex(random_bytes(20)),
             'events' => array_values(array_unique(array_map(static fn (WebhookEvent $event): string => $event->value, $events))),
             'is_active' => true,
         ]);

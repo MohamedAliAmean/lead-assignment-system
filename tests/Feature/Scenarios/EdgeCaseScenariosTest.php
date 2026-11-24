@@ -206,7 +206,7 @@ it('S13: editing fields and status together writes exactly one status audit entr
     $agent = User::factory()->agent()->create();
     $lead = createLead();
 
-    app(UpdateLead::class)->handle($lead, UpdateLeadData::fromPartial($lead, ['name' => 'Renamed', 'status' => 'contacted']), $agent);
+    app(UpdateLead::class)->handle($lead, UpdateLeadData::fromArray(['name' => 'Renamed', 'status' => 'contacted']), $agent);
 
     expect($lead->fresh()->name)->toBe('Renamed')
         ->and(LeadStatusLog::query()->where('lead_id', $lead->id)->whereNotNull('old_status')->count())->toBe(1);

@@ -53,15 +53,15 @@ final class LeadController extends Controller
             new OA\Response(ref: '#/components/responses/ValidationFailed', response: 422),
         ],
     )]
-    public function index(ListLeadsRequest $request): AnonymousResourceCollection
+    public function index(ListLeadsRequest $request, LeadIndexQuery $leads): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Lead::class);
 
-        $leads = LeadIndexQuery::for($this->user($request), $request)
+        $page = $leads->for($this->user($request), $request)
             ->cursorPaginate((int) $request->validated('per_page', 25))
             ->withQueryString();
 
-        return LeadResource::collection($leads);
+        return LeadResource::collection($page);
     }
 
     #[OA\Post(
@@ -149,7 +149,7 @@ final class LeadController extends Controller
     )]
     public function update(UpdateLeadRequest $request, Lead $lead, UpdateLead $updateLead): LeadResource
     {
-        $lead = $updateLead->handle($lead, $request->toDto($lead), $this->user($request));
+        $lead = $updateLead->handle($lead, $request->toDto(), $this->user($request));
 
         return LeadResource::make($lead->load('assignedUser:id,name'));
     }

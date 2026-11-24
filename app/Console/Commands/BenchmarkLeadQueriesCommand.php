@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Authorization\LeadVisibility;
 use App\Enums\UserRole;
 use App\Models\Builders\LeadBuilder;
 use App\Models\Lead;
@@ -22,7 +23,7 @@ final class BenchmarkLeadQueriesCommand extends Command
 
     protected $description = 'Time the lead list queries per role/filter and show their EXPLAIN plans';
 
-    public function handle(): int
+    public function handle(LeadVisibility $visibility): int
     {
         $admin = User::query()->where('role', UserRole::Admin->value)->firstOrFail();
         $manager = User::query()->where('role', UserRole::SalesManager->value)->whereHas('managedTeam')->firstOrFail();
@@ -31,16 +32,16 @@ final class BenchmarkLeadQueriesCommand extends Command
         $this->components->info(sprintf('leads table: %s rows', number_format(Lead::query()->count())));
 
         $cases = [
-            'Admin: latest 25' => fn (): LeadBuilder => Lead::query()->visibleTo($admin),
-            'Admin: Unassigned' => fn (): LeadBuilder => Lead::query()->visibleTo($admin)->unassigned(),
-            'Admin: Overdue' => fn (): LeadBuilder => Lead::query()->visibleTo($admin)->overdue(now()),
-            'Admin: High Priority' => fn (): LeadBuilder => Lead::query()->visibleTo($admin)->highPriority(),
-            'Admin: search name' => fn (): LeadBuilder => Lead::query()->visibleTo($admin)->search('Mona Adel'),
-            'Admin: search phone' => fn (): LeadBuilder => Lead::query()->visibleTo($admin)->search('+201200001'),
-            'Manager: team leads' => fn (): LeadBuilder => Lead::query()->visibleTo($manager),
-            'Manager: team overdue' => fn (): LeadBuilder => Lead::query()->visibleTo($manager)->overdue(now()),
-            'Agent: My Leads' => fn (): LeadBuilder => Lead::query()->visibleTo($agent)->assignedTo($agent),
-            'Agent: high priority' => fn (): LeadBuilder => Lead::query()->visibleTo($agent)->highPriority(),
+            'Admin: latest 25' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $admin),
+            'Admin: Unassigned' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $admin)->unassigned(),
+            'Admin: Overdue' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $admin)->overdue(now()),
+            'Admin: High Priority' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $admin)->highPriority(),
+            'Admin: search name' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $admin)->search('Mona Adel'),
+            'Admin: search phone' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $admin)->search('+201200001'),
+            'Manager: team leads' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $manager),
+            'Manager: team overdue' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $manager)->overdue(now()),
+            'Agent: My Leads' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $agent)->assignedTo($agent),
+            'Agent: high priority' => fn (): LeadBuilder => $visibility->apply(Lead::query(), $agent)->highPriority(),
             'Sweeper: due new leads' => fn (): LeadBuilder => Lead::query()->pendingEscalation(now()->subMinutes(30)),
         ];
 

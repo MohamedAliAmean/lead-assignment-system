@@ -34,6 +34,6 @@ final class EditLead extends EditRecord
         /** @var User $user */
         $user = auth()->user();
 
-        return app(UpdateLead::class)->handle($record, UpdateLeadData::fromPartial($record, $data), $user);
+        return app(UpdateLead::class)->handle($record, UpdateLeadData::fromArray($data), $user);
     }
 }

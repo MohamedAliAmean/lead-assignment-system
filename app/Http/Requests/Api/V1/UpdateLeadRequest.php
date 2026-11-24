@@ -8,7 +8,6 @@ use App\Data\UpdateLeadData;
 use App\Enums\LeadPriority;
 use App\Enums\LeadSource;
 use App\Enums\LeadStatus;
-use App\Models\Lead;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -32,8 +31,8 @@ final class UpdateLeadRequest extends FormRequest
         ];
     }
 
-    public function toDto(Lead $lead): UpdateLeadData
+    public function toDto(): UpdateLeadData
     {
-        return UpdateLeadData::fromPartial($lead, $this->validated());
+        return UpdateLeadData::fromArray($this->validated());
     }
 }
