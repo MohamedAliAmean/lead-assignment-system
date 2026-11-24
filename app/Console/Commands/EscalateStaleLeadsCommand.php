@@ -31,7 +31,7 @@ final class EscalateStaleLeadsCommand extends Command
             ->select('leads.id')
             ->chunkById(500, function ($leads) use (&$dispatched): void {
                 foreach ($leads as $lead) {
-                    EscalateStaleLead::dispatch($lead->getKey());
+                    EscalateStaleLead::dispatch($lead->getKey(), EscalateStaleLead::ORIGIN_SWEEPER);
                     $dispatched++;
                 }
             }, 'leads.id', 'id');

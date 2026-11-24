@@ -135,15 +135,32 @@ it('rolls back the escalation if the notification fails, so a retry starts clean
     expect(LeadEscalation::query()->count())->toBe(0);
 });
 
-it('skips a sweeper dispatch while the original delayed job is still queued', function (): void {
+it('is not blocked by the unique lock of a lost delayed job (regression found by E2E)', function (): void {
+    Bus::fake();
+    createLead(); // the scheduled copy takes its long unique lock... and is never run (lost)
+    $this->travel(31)->minutes();
+
+    Artisan::call('leads:escalate-stale');
+
+    // The sweeper's replacement is dispatched despite the stale scheduled lock.
+    Bus::assertDispatched(EscalateStaleLead::class, fn (EscalateStaleLead $job): bool => $job->origin === EscalateStaleLead::ORIGIN_SWEEPER);
+});
+
+it('queues at most one sweeper copy per lead every five minutes', function (): void {
     Bus::fake();
     createLead();
     $this->travel(31)->minutes();
 
     Artisan::call('leads:escalate-stale');
+    Artisan::call('leads:escalate-stale'); // a minute later in real life: deduplicated
 
-    // Only the original dispatch from createLead; the unique lock blocked the copy.
-    Bus::assertDispatchedTimes(EscalateStaleLead::class, 1);
+    $sweeperCopies = fn (): int => Bus::dispatched(EscalateStaleLead::class, fn ($job) => $job->origin === EscalateStaleLead::ORIGIN_SWEEPER)->count();
+    expect($sweeperCopies())->toBe(1);
+
+    $this->travel(6)->minutes();
+    Artisan::call('leads:escalate-stale');
+
+    expect($sweeperCopies())->toBe(2);
 });
 
 it('sweeper dispatches jobs only for due, un-escalated new leads', function (): void {

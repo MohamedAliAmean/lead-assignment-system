@@ -17,6 +17,12 @@ use Throwable;
  *
  * ShouldBeUnique only avoids enqueueing obvious duplicates; the real guarantee
  * is the UNIQUE constraint used by EscalateLead.
+ *
+ * The unique lock is keyed per ORIGIN. The scheduled copy holds a long lock
+ * (it must outlive the 30-minute delay), while sweeper copies use their own
+ * short lock. If a delayed job is lost (queue flushed), its lock can no longer
+ * silently block the sweeper's replacement, which is exactly the case the
+ * sweeper exists for. Found by the end-to-end scenarios.
  */
 final class EscalateStaleLead implements ShouldBeUnique, ShouldQueue
 {
@@ -27,23 +33,34 @@ final class EscalateStaleLead implements ShouldBeUnique, ShouldQueue
     /** @var list<int> */
     public array $backoff = [10, 30, 60, 120];
 
-    public function __construct(public readonly int $leadId)
-    {
+    public const string ORIGIN_SCHEDULED = 'scheduled';
+
+    public const string ORIGIN_SWEEPER = 'sweeper';
+
+    /** Sweeper copies: at most one queued per lead per 5 minutes. */
+    private const int SWEEPER_LOCK_SECONDS = 300;
+
+    public function __construct(
+        public readonly int $leadId,
+        public readonly string $origin = self::ORIGIN_SCHEDULED,
+    ) {
         $this->onQueue('escalations');
     }
 
     public function uniqueId(): string
     {
-        return (string) $this->leadId;
+        return "{$this->leadId}:{$this->origin}";
     }
 
     /**
-     * The lock must outlive the dispatch delay, otherwise the sweeper could
-     * enqueue a second copy while the first is still waiting.
+     * Scheduled copy: the lock must outlive the dispatch delay. Sweeper copy:
+     * short, so a stuck lead is retried every few minutes at most.
      */
     public function uniqueFor(): int
     {
-        return ((int) config('leads.escalation_delay_minutes') + 60) * 60;
+        return $this->origin === self::ORIGIN_SWEEPER
+            ? self::SWEEPER_LOCK_SECONDS
+            : ((int) config('leads.escalation_delay_minutes') + 60) * 60;
     }
 
     public function handle(EscalateLead $escalate): void

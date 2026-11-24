@@ -80,7 +80,7 @@ Two server-side layers that share one rule per role:
 - writes the database notification **in the same transaction**, so "escalated" and "notified" commit together. Any failure rolls both back, and the retry starts clean;
 - never modifies the lead.
 
-`ShouldBeUnique` only avoids enqueueing duplicates; the database constraint is the real guarantee. A scheduled **sweeper** (`leads:escalate-stale`, every minute) re-dispatches due, un-escalated leads. Delayed jobs can be lost (queue flushed, tries exhausted), and some drivers cap delays (**Amazon SQS: 15 minutes maximum**). The sweeper is safe because the job is idempotent.
+`ShouldBeUnique` only avoids enqueueing duplicates; the database constraint is the real guarantee. The unique lock is keyed **per origin**: the scheduled copy holds a long lock (it must outlive the 30-minute delay), while sweeper copies use their own 5-minute lock. Otherwise the lock of a *lost* delayed job would silently block the sweeper's replacement for up to an hour, which is exactly the case the sweeper exists for. This was found by the end-to-end scenarios and is covered by a regression test. A scheduled **sweeper** (`leads:escalate-stale`, every minute) re-dispatches due, un-escalated leads. Delayed jobs can be lost (queue flushed, tries exhausted), and some drivers cap delays (**Amazon SQS: 15 minutes maximum**). The sweeper is safe because the job is idempotent.
 
 Outbound webhooks follow the same rules: events dispatch **after commit**; `UNIQUE(subscription_id, event_id)` means a retried listener never creates a second delivery; a delivered row is never re-sent; failures retry with backoff 10 s → 30 min. Delivery is at-least-once, so receivers de-duplicate on `X-Webhook-Id`.
 
