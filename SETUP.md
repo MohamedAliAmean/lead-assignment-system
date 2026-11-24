@@ -129,8 +129,20 @@ php artisan schedule:work                                     # escalation sweep
 |---|---|
 | http://127.0.0.1:8000 | Home page, with links to everything below |
 | http://127.0.0.1:8000/admin | **Admin panel** (Filament 5): role-aware dashboard, leads, bulk assignment, users, teams, webhooks |
-| http://127.0.0.1:8000/workspace | **Agent Workspace** (Angular 22 SPA, built only on the REST API) |
+| http://127.0.0.1:8000/workspace | **Agent Workspace** (Angular 22 SPA, built only on the REST API). *Optional extra*, see below |
 | http://127.0.0.1:8000/api/documentation | **Swagger UI** for the REST API |
+
+### Why are there two interfaces?
+
+**The Filament admin panel (`/admin`) is the deliverable the brief asks for.** It has everything: leads, filters, bulk assignment, users, teams, webhooks and the role-aware dashboard. **You can review the whole assessment there.**
+
+**The Agent Workspace (`/workspace`) is an optional extra, not a second admin panel.** It is a lightweight client for the **sales team** (agents and managers doing their daily work: their leads, status changes, bulk assignment). It was added for three reasons:
+
+1. **It exercises the public REST API end to end.** It talks to the backend only through `/api/v1`, with no shared code and no Filament. It shows that the API is complete enough to build a real client on, and it demonstrates how a mobile or partner app would integrate.
+2. **It shows that no business logic lives in the UI.** Both interfaces call the **same Actions** (use cases) with the **same authorization**, so they always show the same numbers. No business rule is duplicated; only the presentation is.
+3. **It demonstrates frontend skills** (Angular 22, signals, interceptors, guards) in a separate, independently deployable app.
+
+> The brief's architecture requirement (*"business logic must be reusable outside Filament"*) is already met **without** the workspace: the same Actions are used by the REST API, the inbound webhook, the scheduler and the test suite, and architecture tests enforce that Filament holds no business logic. The workspace is a visible demonstration, not a dependency. Skipping it changes nothing about the core deliverable.
 
 ### Demo accounts (password: `password`)
 

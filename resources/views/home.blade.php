@@ -42,14 +42,14 @@
 
     <div class="grid">
         <a class="card" href="{{ url('/admin') }}">
-            <span class="tag">Filament 5</span>
+            <span class="tag">Filament 5 · Required deliverable</span>
             <h2>Admin panel →</h2>
-            <p>Role-aware dashboard, lead management, bulk assignment, users, teams and webhooks.</p>
+            <p>The back-office: role-aware dashboard, lead management, bulk assignment, users, teams and webhooks. Review the assessment here.</p>
         </a>
         <a class="card" href="{{ url('/workspace') }}">
-            <span class="tag">Angular 22</span>
+            <span class="tag">Angular 22 · Optional extra</span>
             <h2>Agent Workspace →</h2>
-            <p>A separate single-page app built only on the public REST API.</p>
+            <p>A lightweight app for the sales team, built only on the public REST API. Same use cases and permissions as the admin panel: it demonstrates the API, not a second admin.</p>
         </a>
         <a class="card" href="{{ url('/api/documentation') }}">
             <span class="tag">OpenAPI 3</span>

@@ -84,10 +84,10 @@ BODY='{"external_id":"web-1","name":"Mona Adel","phone":"+201112223334"}'; TS=$(
 
 ## Frontend
 
-There are two user interfaces on the same backend. Both enforce nothing on their own: all authorization happens on the server.
+There are two user interfaces on the same backend. Neither makes authorization decisions: all of it happens on the server.
 
-- **Admin panel (Filament 5):** a branded, role-aware dashboard (KPI cards, 14-day trend, pipeline chart, capacity today, most-overdue leads) and a notification bell for escalations.
-- **Agent Workspace (Angular 22):** standalone components, signals, functional interceptors and guards, Tailwind 4. It is built only on the public REST API, which is the practical proof that the business logic is reusable outside Filament.
+- **Admin panel (Filament 5), the required deliverable:** the back-office, with a branded, role-aware dashboard (KPI cards, 14-day trend, pipeline chart, capacity today, most-overdue leads), lead management, bulk assignment, users, teams, webhooks, and a notification bell for escalations.
+- **Agent Workspace (Angular 22), an optional extra:** a lightweight client for the sales team, built **only on the public REST API** (standalone components, signals, functional interceptors and guards, Tailwind 4). It exercises the API end to end and shows that no business logic lives in any UI: both interfaces call the same Actions with the same authorization. It is not a second admin panel and not needed to review the assessment. See [SETUP.md → Why are there two interfaces?](SETUP.md#why-are-there-two-interfaces).
 
 Both dashboards read their numbers from one server-side class (`App\Queries\LeadDashboardStats`), so they always agree.
 
